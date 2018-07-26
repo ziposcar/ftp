@@ -2,6 +2,7 @@
 import os
 import sys
 import re
+from getopt import getopt
 from flask import Flask, render_template, send_from_directory, flash, request, redirect, session, abort
 from shutil import rmtree, copyfile, copytree
 from unicodedata import normalize
@@ -464,4 +465,15 @@ def clear_get():
     return redirect('/')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    opts = getopt(sys.argv[1:], 'p:dh:')[0]
+    host = '0.0.0.0'
+    port = 8080
+    debug = False
+    for opt, arg in opts:
+        if opt == '-p':
+            port = int(arg)
+        elif opt == '-d':
+            debug = True
+        elif opt == '-h':
+            host = arg
+    app.run(host=host, port=port, debug=debug)
