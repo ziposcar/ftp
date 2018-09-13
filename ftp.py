@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 import os
-import sys
+import random
 import re
+import sys
+import urllib
+from getopt import getopt
 from flask import Flask, render_template, send_from_directory, flash, request, redirect, session, abort
 from shutil import rmtree, copyfile, copytree
 from unicodedata import normalize
+
 
 
 # 复制 werkzeug.utils import secure_filename
@@ -37,6 +41,8 @@ def dir_list(path):
     fileList = []
     dirList = []
     for x in os.listdir(path):
+        if x[0] == '.':
+            continue
         if os.path.isfile(os.path.join(path, x)):
             fileList.append(x)
         else:
@@ -73,19 +79,19 @@ app.config.from_object(__name__)
 
 
 # 懒得弄logo, 直接返回404
-@app.route('/favicon.ico', methods=['GET'])
+@app.route('/files/favicon.ico', methods=['GET'])
 def favicon_ico():
     abort(404)
 
 
 # 跳转到/ftp
-@app.route('/', methods=['GET'])
+@app.route('/files/', methods=['GET'])
 def home_of_no_variable_get():
-    return redirect('/ftp')
+    return redirect('/files/ftp')
 
 
-@app.route('/ftp/', methods=['GET'])
-@app.route('/ftp/<path:path>', methods=['GET'])
+@app.route('/files/ftp/', methods=['GET'])
+@app.route('/files/ftp/<path:path>', methods=['GET'])
 def ftp_get(path = ''):
     currentPath = path
     path = os.path.join(CURRENT_DIR, currentPath)
@@ -104,6 +110,9 @@ def ftp_get(path = ''):
 
     isCreateFile = session.get('isCreateFile', False)
     session.pop('isCreateFile', False)
+
+    isRandom = session.get('isRandom', False)
+    session.pop('isRandom', False)
 
     isCopy = session.get('isCopy', False)
 
@@ -139,7 +148,7 @@ def ftp_get(path = ''):
         if format in ['.txt', '.xml', '.py', '.html']:
             with open(path, 'rb') as f:
                 res = app.make_response(f.read())
-            res.headers['Content-Type'] = 'text/plain'
+            res.headers['Content-Type'] = 'text/plain;charset=utf-8'
             return res
 
         if format in ['.pdf']:
@@ -153,6 +162,9 @@ def ftp_get(path = ''):
                                    as_attachment=True)
 
     fileList, dirList = dir_list(path)
+    if isRandom:
+        random.shuffle(fileList)
+        random.shuffle(dirList)
 
     history(currentPath)
 
@@ -180,14 +192,14 @@ def ftp_get(path = ''):
                            isMov=isMov)
 
 
-@app.route('/upload', methods=['GET'])
+@app.route('/files/upload', methods=['GET'])
 def upload_get():
     currentPath = session['currentPath']
     session['isUpload'] = True
-    return redirect('/ftp/%s' % currentPath)
+    return redirect('/files/ftp/%s' % currentPath)
 
 
-@app.route('/upload', methods=['POST'])
+@app.route('/files/upload', methods=['POST'])
 def upload_post():
     currentPath = session['currentPath']
     session.pop('isUpload', False)
@@ -201,10 +213,10 @@ def upload_post():
     else:
         flash('%s 上传失败!' % filename)
 
-    return redirect('/ftp/%s' % currentPath)
+    return redirect('/files/ftp/%s' % currentPath)
 
 
-@app.route('/upPath', methods=['GET'])
+@app.route('/files/upPath', methods=['GET'])
 def upPath_get():
     currentPath = session['currentPath']
 
@@ -212,10 +224,10 @@ def upPath_get():
     upPath.pop(-1)
     upPath = '/'.join(upPath)
 
-    return redirect('/ftp/%s' % upPath)
+    return redirect('/files/ftp/%s' % upPath)
 
 
-@app.route('/prePath', methods=['GET'])
+@app.route('/files/prePath', methods=['GET'])
 def prePath_get():
     if session['p'] > 0:
         session['p'] -= 1
@@ -224,10 +236,10 @@ def prePath_get():
 
     session['isPre'] = True
 
-    return redirect('/ftp/%s' % prePath)
+    return redirect('/files/ftp/%s' % prePath)
 
 
-@app.route('/nextPath', methods=['GET'])
+@app.route('/files/nextPath', methods=['GET'])
 def nextPath_get():
     if session['p'] < len(session['pathHistory']) - 1:
         session['p'] += 1
@@ -236,17 +248,17 @@ def nextPath_get():
 
     session['isNext'] = True
 
-    return redirect('/ftp/%s' % nextPath)
+    return redirect('/files/ftp/%s' % nextPath)
 
 
-@app.route('/searchFile', methods=['GET'])
+@app.route('/files/searchFile', methods=['GET'])
 def search_file_get():
     currentPath = session['currentPath']
     session['isSearchFile'] = True
-    return redirect('/ftp/%s' % currentPath)
+    return redirect('/files/ftp/%s' % currentPath)
 
 
-@app.route('/searchFile', methods=['POST'])
+@app.route('/files/searchFile', methods=['POST'])
 def search_file_post():
     currentPath = session['currentPath']
     session.pop('isSearchFile', False)
@@ -266,17 +278,17 @@ def search_file_post():
                 filepath = os.path.join(dirpath, filename)
                 session['searchFileRes'].append(filepath)
 
-    return redirect('/ftp/%s' % currentPath)
+    return redirect('/files/ftp/%s' % currentPath)
 
 
-@app.route('/searchText', methods=['GET'])
+@app.route('/files/searchText', methods=['GET'])
 def search_text_get():
     currentPath = session['currentPath']
     session['isSearchText'] = True
-    return redirect('/ftp/%s' % currentPath)
+    return redirect('/files/ftp/%s' % currentPath)
 
 
-@app.route('/searchText', methods=['POST'])
+@app.route('/files/searchText', methods=['POST'])
 def search_test_post():
     currentPath = session['currentPath']
     session.pop('isSearchText', False)
@@ -298,17 +310,17 @@ def search_test_post():
             except:
                 pass
 
-    return redirect('/ftp/%s' % currentPath)
+    return redirect('/files/ftp/%s' % currentPath)
 
 
-@app.route('/createDir', methods=['GET'])
+@app.route('/files/createDir', methods=['GET'])
 def create_dir_get():
     currentPath = session['currentPath']
     session['isCreateDir'] = True
-    return redirect('/ftp/%s' % currentPath)
+    return redirect('/files/ftp/%s' % currentPath)
 
 
-@app.route('/createDir', methods=['POST'])
+@app.route('/files/createDir', methods=['POST'])
 def create_dir_post():
     currentPath = session['currentPath']
     session.pop('isCreateDir', False)
@@ -321,17 +333,17 @@ def create_dir_post():
     except:
         flash("文件夹已存在或权限不足")
 
-    return redirect('/ftp/%s' % currentPath)
+    return redirect('/files/ftp/%s' % currentPath)
 
 
-@app.route('/createFile', methods=['Get'])
+@app.route('/files/createFile', methods=['Get'])
 def create_file_get():
     currentPath = session['currentPath']
     session['isCreateFile'] = True
-    return redirect('/ftp/%s' % currentPath)
+    return redirect('/files/ftp/%s' % currentPath)
 
 
-@app.route('/createFile', methods=['POST'])
+@app.route('/files/createFile', methods=['POST'])
 def create_file_post():
     currentPath = session['currentPath']
     session.pop('isCreateFile', False)
@@ -348,10 +360,10 @@ def create_file_post():
     else:
         flash('请输入文件名!')
 
-    return redirect('/ftp/%s' % currentPath)
+    return redirect('/files/ftp/%s' % currentPath)
 
 
-@app.route('/copy', methods=['POST'])
+@app.route('/files/copy', methods=['POST'])
 def copy_post():
     currentPath = session['currentPath']
 
@@ -365,10 +377,10 @@ def copy_post():
 
     session.pop('isMov', False)
 
-    return redirect('/ftp/%s' % currentPath)
+    return redirect('/files/ftp/%s' % currentPath)
 
 
-@app.route('/mov', methods=['POST'])
+@app.route('/files/mov', methods=['POST'])
 def mov_post():
     currentPath = session['currentPath']
 
@@ -382,10 +394,10 @@ def mov_post():
 
     session.pop('isCopy', False)
 
-    return redirect('/ftp/%s' % currentPath)
+    return redirect('/files/ftp/%s' % currentPath)
 
 
-@app.route('/paste', methods=['POST'])
+@app.route('/files/paste', methods=['POST'])
 def paste_post():
     currentPath = session['currentPath']
 
@@ -411,10 +423,10 @@ def paste_post():
 
     flash("%s 成功!" % fileList)
 
-    return redirect('/ftp/%s' % currentPath)
+    return redirect('/files/ftp/%s' % currentPath)
 
 
-@app.route('/del', methods=['POST'])
+@app.route('/files/del', methods=['POST'])
 def del_post():
     currentPath = session['currentPath']
 
@@ -434,11 +446,11 @@ def del_post():
             flash("删除%s失败，权限不足或者此文件不存在" % path)
 
     flash('删除完成!' % choice)
-    return redirect('/ftp/%s' % currentPath)
+    return redirect('/files/ftp/%s' % currentPath)
 
 
 # 取消
-@app.route('/cancel', methods=['POST'])
+@app.route('/files/cancel', methods=['POST'])
 def cancel_post():
     currentPath = session['currentPath']
 
@@ -454,14 +466,35 @@ def cancel_post():
     session.pop('isCopy', False)
     session.pop('isMov', False)
 
-    return redirect('/ftp/%s' % currentPath)
+    return redirect('/files/ftp/%s' % currentPath)
+
+
+#打乱
+@app.route('/files/random')
+def files_random():
+    currentPath = session['currentPath']
+    session['isRandom'] = True
+
+    return redirect('/files/ftp/%s' % currentPath)
 
 
 # 清除session
-@app.route('/clear', methods=['GET'])
+@app.route('/files/clear', methods=['GET'])
 def clear_get():
     session.clear()
-    return redirect('/')
+    return redirect('/files/')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    opts = getopt(sys.argv[1:], 'p:dh:')[0]
+    host = '0.0.0.0'
+    port = 8080
+    debug = False
+    for opt, arg in opts:
+        if opt == '-p':
+            port = int(arg)
+        elif opt == '-d':
+            debug = True
+        elif opt == '-h':
+            host = arg
+    app.run(host=host, port=port, debug=debug)
+
